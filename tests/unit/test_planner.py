@@ -78,3 +78,34 @@ def test_no_change_still_applies_when_incomplete_but_forced():
         existing=EXISTING, previous_hash="sha256:current",
         bundle_complete=False, allow_partial=True,
     ) is SyncAction.NO_CHANGE
+
+
+def test_a_run_where_every_document_failed_is_not_a_partial_failure():
+    """Exit 1 tells a scheduler some sources synced. A total outage did not."""
+    from aws_doc_sync.sync.results import BundleResult, DocumentPlan, SyncReport
+
+    report = SyncReport()
+    for name in ("AWS_A", "AWS_B"):
+        result = BundleResult(bundle_id=name, collection_id="c", output=name)
+        result.documents.append(
+            DocumentPlan(name=name, bundle_id=name, action=SyncAction.ERROR, error="down")
+        )
+        report.bundles.append(result)
+
+    assert report.exit_code() == 2
+
+
+def test_a_run_where_one_document_failed_is_a_partial_failure():
+    from aws_doc_sync.sync.results import BundleResult, DocumentPlan, SyncReport
+
+    report = SyncReport()
+    result = BundleResult(bundle_id="b", collection_id="c", output="AWS_A")
+    result.documents.append(
+        DocumentPlan(name="AWS_A", bundle_id="b", action=SyncAction.ERROR, error="down")
+    )
+    result.documents.append(
+        DocumentPlan(name="AWS_B", bundle_id="b", action=SyncAction.NO_CHANGE)
+    )
+    report.bundles.append(result)
+
+    assert report.exit_code() == 1

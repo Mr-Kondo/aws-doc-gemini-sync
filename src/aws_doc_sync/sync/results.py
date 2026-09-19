@@ -126,9 +126,14 @@ class SyncReport:
 
         A partial failure must not read as success to a scheduler, but it must
         also not read as a total failure -- the sources that did sync are live
-        and correct.
+        and correct. The reverse matters just as much: a total outage in which
+        every bundle failed is not a partial failure, and reporting it as one
+        makes it indistinguishable from a single page 404ing.
         """
         if self.errors and not self.bundles:
+            return 2
+        documents = self.all_documents
+        if documents and all(d.action is SyncAction.ERROR for d in documents):
             return 2
         if self.has_failures:
             return 1

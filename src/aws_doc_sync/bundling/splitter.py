@@ -29,7 +29,6 @@ class PartPlan:
 
     part: int
     sections: tuple[SourceSection, ...]
-    oversized: bool = False
 
     @property
     def char_count(self) -> int:
@@ -53,7 +52,6 @@ def plan_parts(
 
     budget = max(target_max_chars - header_allowance, 1)
     parts: list[list[SourceSection]] = []
-    oversized_parts: set[int] = set()
     current: list[SourceSection] = []
     current_size = 0
 
@@ -66,7 +64,6 @@ def plan_parts(
                 parts.append(current)
                 current, current_size = [], 0
             parts.append([section])
-            oversized_parts.add(len(parts) - 1)
             log.warning(
                 "bundle_section_exceeds_hard_limit",
                 extra={
@@ -88,7 +85,7 @@ def plan_parts(
         parts.append(current)
 
     return [
-        PartPlan(part=index + 1, sections=tuple(items), oversized=(index in oversized_parts))
+        PartPlan(part=index + 1, sections=tuple(items))
         for index, items in enumerate(parts)
     ]
 

@@ -99,3 +99,26 @@ def test_content_is_stored_verbatim_including_code_fences(tmp_path):
     key = compute_content_hash(payload)
     c.put(key, payload)
     assert c.get(key) == payload
+
+
+def test_a_failed_write_leaves_no_temporary_file(tmp_path, monkeypatch):
+    """The cache directory is meant to be self-maintaining.
+
+    A partial file left behind on every full disk turns the one directory that
+    prunes itself into one that accumulates junk.
+    """
+    import os
+
+    c = cache(tmp_path)
+    c.put(HASH, TEXT)  # create the directory
+    (tmp_path / "content-cache" / "x.md").unlink(missing_ok=True)
+
+    def explode(src, dst):
+        raise OSError("no space left on device")
+
+    monkeypatch.setattr(os, "replace", explode)
+    other = "# Other content\n"
+    c.put(compute_content_hash(other), other)
+
+    leftovers = [p.name for p in (tmp_path / "content-cache").iterdir() if p.suffix == ".tmp"]
+    assert leftovers == []

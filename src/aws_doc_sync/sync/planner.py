@@ -23,9 +23,10 @@ The rules:
 
 from __future__ import annotations
 
-from ..bundling.builder import BundleBuilder, SourceSection
+from ..bundling.builder import BundleBuilder, SourceSection, header_allowance_for
 from ..bundling.splitter import document_name, plan_parts
 from ..domain.models import Bundle, BundleDocument, NormalizedDocument, StoredDocument, SyncAction
+from ..domain.urls import canonical_page_url
 
 
 def decide_action(
@@ -82,8 +83,6 @@ def plan_bundle_documents(
 
     sections: list[SourceSection] = []
     for source in bundle.sources:
-        from ..domain.urls import canonical_page_url
-
         document = by_url.get(canonical_page_url(source.url))
         if document is None:
             continue  # failed or orphaned; the caller decides what that means
@@ -94,7 +93,10 @@ def plan_bundle_documents(
         return []
 
     parts = plan_parts(
-        sections, target_max_chars=target_max_chars, hard_max_chars=hard_max_chars
+        sections,
+        target_max_chars=target_max_chars,
+        hard_max_chars=hard_max_chars,
+        header_allowance=header_allowance_for(sections),
     )
     part_count = len(parts)
 

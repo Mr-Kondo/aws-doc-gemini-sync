@@ -53,7 +53,6 @@ class SyncAction(StrEnum):
 class SourceStatus(StrEnum):
     """Per-source outcome within a run."""
 
-    FETCHED = "FETCHED"
     UNCHANGED = "UNCHANGED"
     CHANGED = "CHANGED"
     NEW = "NEW"

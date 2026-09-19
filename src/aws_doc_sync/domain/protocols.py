@@ -12,10 +12,8 @@ from collections.abc import Iterable, Sequence
 from typing import Protocol, runtime_checkable
 
 from .models import (
-    Bundle,
     DocumentSource,
     HttpValidators,
-    NormalizedDocument,
     NotModified,
     RawDocument,
     StoredDocument,
@@ -53,24 +51,6 @@ class DocumentFetcher(Protocol):
             FetchError: any other retrieval failure.
         """
         ...
-
-
-@runtime_checkable
-class DocumentNormalizer(Protocol):
-    """Turns retrieved bytes into deterministic, hashable document content."""
-
-    def normalize(self, raw: RawDocument) -> NormalizedDocument: ...
-
-
-@runtime_checkable
-class ChangeCandidateSource(Protocol):
-    """Fast-path hint provider (e.g. AWS document-history RSS).
-
-    Returns the canonical URLs that *may* have changed. Purely advisory: a source
-    absent from the result is not proof that it is unchanged.
-    """
-
-    def candidates(self, bundle: Bundle) -> set[str]: ...
 
 
 @runtime_checkable

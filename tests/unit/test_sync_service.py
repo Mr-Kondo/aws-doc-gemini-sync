@@ -793,3 +793,166 @@ def test_a_retired_document_is_re_adopted_if_its_name_comes_back(tmp_path):
 
     assert store.created == [], "a retired document was duplicated instead of reused"
     assert store.find_by_name("AWS_Example_02").id == part_two_id
+
+
+# -- write verification ---------------------------------------------------------------
+
+
+class EmptyingStore(FakeDocumentStore):
+    """A store whose writes land but whose documents read back empty.
+
+    Models the real failure: Drive accepts the upload and reports success, and
+    the Markdown conversion produces nothing.
+    """
+
+    class _Shape:
+        is_empty = True
+
+    def inspect(self, document_id: str):
+        return self._Shape()
+
+
+def test_a_document_that_reads_back_empty_is_not_recorded_as_synced():
+    """Recording the hash would make the emptiness permanent.
+
+    The next run would compare equal, report NO_CHANGE, and never rewrite -- the
+    knowledge source stays empty forever while the pipeline reports success.
+    """
+    b = bundle(["alpha"])
+    fetcher = ScriptedFetcher({f"{BASE}/alpha.html": body("alpha")})
+    store = EmptyingStore()
+    manifests = InMemoryManifestRepository()
+
+    report = service(fetcher, store, manifests).run([b])
+
+    plan = report.all_documents[0]
+    assert plan.action is SyncAction.ERROR
+    assert "empty" in (plan.error or "")
+    assert report.exit_code() != 0, "an empty knowledge source must not read as success"
+
+    state = manifests.load().bundle("b")
+    # The file exists, so remember it -- but not as content we agree with.
+    assert state.document_ids == {"AWS_Example": plan.document_id}
+    assert state.composition_hashes == {}
+
+
+def test_the_next_run_rewrites_a_document_that_read_back_empty():
+    b = bundle(["alpha"])
+    fetcher = ScriptedFetcher({f"{BASE}/alpha.html": body("alpha")})
+    store = EmptyingStore()
+    manifests = InMemoryManifestRepository()
+
+    service(fetcher, store, manifests).run([b])
+    store.updated.clear()
+
+    second = service(fetcher, store, manifests).run([b], full_scan=True)
+
+    # Not NO_CHANGE: the missing hash is what forces the retry.
+    assert second.all_documents[0].action is not SyncAction.NO_CHANGE
+    assert store.updated == ["AWS_Example"]
+
+
+def test_a_store_that_cannot_read_back_is_still_trusted():
+    """Absence of evidence is not evidence of emptiness.
+
+    Treating an unreadable store as broken would rewrite every document on
+    every run.
+    """
+    b = bundle(["alpha"])
+    fetcher = ScriptedFetcher({f"{BASE}/alpha.html": body("alpha")})
+    store = FakeDocumentStore()  # no inspect method at all
+    manifests = InMemoryManifestRepository()
+
+    service(fetcher, store, manifests).run([b])
+    report = service(fetcher, store, manifests).run([b], full_scan=True)
+
+    assert report.action_counts() == {"NO_CHANGE": 1}
+
+
+# -- retirement safety ------------------------------------------------------------
+
+
+def test_an_incomplete_bundle_does_not_retire_its_own_live_documents(tmp_path):
+    """A bundle renders from the sources that survived, so a failure can make it
+    look smaller than it is. Retiring on that basis records live Drive documents
+    as retired while leaving them untouched."""
+    from aws_doc_sync.config.settings import GoogleDocsSettings
+    from aws_doc_sync.manifest.content_cache import ContentCache
+
+    slugs = ["alpha", "beta"]
+    fetcher = ScriptedFetcher(
+        {f"{BASE}/{s}.html": f"# {s.title()}\n\n{'x' * 2_000}\n" for s in slugs}
+    )
+    store = FakeDocumentStore()
+    manifests = InMemoryManifestRepository()
+    cache = ContentCache(tmp_path / "cache")
+    tight = default_settings(
+        google_docs=GoogleDocsSettings(target_max_chars=4_000, hard_max_chars=500_000)
+    )
+
+    cached_service(fetcher, store, manifests, cache, tight).run([bundle(slugs)])
+    assert set(manifests.load().bundle("b").document_ids) == {
+        "AWS_Example_01",
+        "AWS_Example_02",
+    }
+
+    # beta now fails, so only alpha renders -- a single part.
+    fetcher.bodies[f"{BASE}/beta.html"] = FetchError("503", source_url=f"{BASE}/beta.html")
+    report = cached_service(fetcher, store, manifests, cache, tight).run(
+        [bundle(slugs)], full_scan=True
+    )
+
+    assert all(p.action is SyncAction.SKIPPED_INCOMPLETE for p in report.all_documents)
+    state = manifests.load().bundle("b")
+    assert set(state.document_ids) == {"AWS_Example_01", "AWS_Example_02"}
+    assert state.orphaned_documents == {}
+
+
+def test_unexpected_source_errors_leave_the_same_trace_as_expected_ones():
+    b = bundle(["alpha"])
+    fetcher = ScriptedFetcher({f"{BASE}/alpha.html": body("alpha")})
+    manifests = InMemoryManifestRepository()
+    service(fetcher, FakeDocumentStore(), manifests).run([b])
+
+    fetcher.bodies[f"{BASE}/alpha.html"] = MemoryError("out of memory")
+    service(fetcher, FakeDocumentStore(), manifests).run([b], full_scan=True)
+
+    state = manifests.load().source(f"{BASE}/alpha.html")
+    assert state.last_error is not None
+    assert "MemoryError" in state.last_error
+
+
+def test_a_split_that_also_renames_the_output_still_carries_the_id(tmp_path):
+    """The predecessor name is built from the output that was in force last run.
+
+    Reading the new one instead makes the rename invisible, so part one is
+    created fresh and the document every notebook references is left behind.
+    """
+    from aws_doc_sync.config.settings import GoogleDocsSettings
+    from aws_doc_sync.manifest.content_cache import ContentCache
+
+    slugs = ["alpha", "beta"]
+    bodies = {f"{BASE}/{s}.html": f"# {s.title()}\n\n{'x' * 2_000}\n" for s in slugs}
+    fetcher = ScriptedFetcher(bodies)
+    store = FakeDocumentStore()
+    manifests = InMemoryManifestRepository()
+    cache = ContentCache(tmp_path / "cache")
+
+    wide = default_settings(
+        google_docs=GoogleDocsSettings(target_max_chars=250_000, hard_max_chars=500_000)
+    )
+    original = bundle(slugs, output="AWS_Old")
+    first = cached_service(fetcher, store, manifests, cache, wide).run([original])
+    original_id = first.all_documents[0].document_id
+
+    # The output is renamed in the same change that crosses the split threshold.
+    tight = default_settings(
+        google_docs=GoogleDocsSettings(target_max_chars=4_000, hard_max_chars=500_000)
+    )
+    renamed = bundle(slugs, output="AWS_New")
+    second = cached_service(fetcher, store, manifests, cache, tight).run(
+        [renamed], full_scan=True
+    )
+
+    part_one = next(d for d in second.all_documents if d.name == "AWS_New_01")
+    assert part_one.document_id == original_id

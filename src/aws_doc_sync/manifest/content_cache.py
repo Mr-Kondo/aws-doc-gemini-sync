@@ -99,11 +99,20 @@ class ContentCache:
         try:
             self.path.mkdir(parents=True, exist_ok=True)
             handle, tmp_name = tempfile.mkstemp(dir=str(self.path), suffix=".tmp")
+        except OSError as exc:
+            # A cache that cannot be written must not fail a sync.
+            log.warning("cache_write_failed", extra={"reason": str(exc)})
+            return
+
+        try:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
                 stream.write(content)
             os.replace(tmp_name, entry)
         except OSError as exc:
-            # A cache that cannot be written must not fail a sync.
+            # Leaving the partial file behind would accumulate .tmp entries every
+            # time the disk is full, in the one directory that is supposed to be
+            # self-maintaining.
+            Path(tmp_name).unlink(missing_ok=True)
             log.warning("cache_write_failed", extra={"reason": str(exc)})
 
     def prune(self, keep: set[str]) -> int:

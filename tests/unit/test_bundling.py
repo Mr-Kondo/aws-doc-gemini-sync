@@ -183,14 +183,23 @@ def test_packing_preserves_order_and_never_reorders_to_fit():
 def test_a_section_over_the_hard_limit_is_isolated_never_truncated():
     """Losing documentation to satisfy a size limit is the worse failure."""
     huge = section(60_000, 0)
+    small = section(100, 1)
     parts = plan_parts(
-        [section(100, 1), huge], target_max_chars=10_000, hard_max_chars=50_000,
+        [small, huge], target_max_chars=10_000, hard_max_chars=50_000,
         header_allowance=0,
     )
-    oversized = [p for p in parts if p.oversized]
-    assert len(oversized) == 1
-    assert oversized[0].sections[0].source_url == huge.source_url
-    assert oversized[0].sections[0].char_count > 50_000  # kept in full
+
+    # The oversized section gets a part to itself rather than dragging a
+    # neighbour over the limit with it, and is carried in full.
+    isolated = [p for p in parts if p.sections[0].source_url == huge.source_url]
+    assert len(isolated) == 1
+    assert len(isolated[0].sections) == 1
+    assert isolated[0].sections[0].char_count > 50_000
+    # Nothing was dropped to make room.
+    assert {s.source_url for p in parts for s in p.sections} == {
+        huge.source_url,
+        small.source_url,
+    }
 
 
 def test_empty_input_produces_no_documents():
@@ -205,3 +214,30 @@ def test_empty_input_produces_no_documents():
 def test_document_names_sort_correctly(part, count, expected):
     name = document_name("OUT", part=part, part_count=count, suffix_format="_{part:02d}")
     assert name == expected
+
+
+def test_header_allowance_grows_with_the_contents_list():
+    """The header lists every section it carries, so reserving a constant is
+    wrong in the direction that matters: a large bundle overshoots the target it
+    was configured to respect."""
+    from aws_doc_sync.bundling.builder import header_allowance_for
+
+    few = [BundleBuilder().section(doc(f"page{i}"), retrieved_at=T0) for i in range(2)]
+    many = [BundleBuilder().section(doc(f"page{i}"), retrieved_at=T0) for i in range(40)]
+
+    assert header_allowance_for(many) > header_allowance_for(few)
+    # Enough to cover the lines it reserves for.
+    assert header_allowance_for(many) - header_allowance_for(few) >= sum(
+        len(s.title) for s in many[2:]
+    )
+
+
+def test_a_title_override_does_not_duplicate_the_heading():
+    """Matching heading text before dropping it fails whenever the registry
+    renames a source -- the reader then sees the section twice."""
+    document = doc("alpha", title="Upstream name")
+    renamed = document.model_copy(update={"title": "Operator name"})
+    rendered = render(bundle(["alpha"]), [renamed])[0]
+
+    assert "## Operator name" in rendered.markdown
+    assert "Upstream name" not in rendered.markdown

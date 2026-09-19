@@ -292,6 +292,13 @@ class SyncService:
                 continue
             except Exception as exc:  # unexpected: still isolated to this source
                 log.exception("source_fetch_failed", extra={"source_url": canonical})
+                if previous is not None:
+                    # Same bookkeeping as the expected-failure branch: without it
+                    # stored state claims the source was last checked long ago
+                    # and never records why it is failing.
+                    previous.last_checked = now
+                    previous.last_error = f"{type(exc).__name__}: {exc}"
+                    manifest.put_source(previous)
                 result.sources.append(
                     SourceResult(
                         source_url=canonical,
@@ -429,6 +436,10 @@ class SyncService:
         state = manifest.bundle(bundle.id) or BundleState(
             bundle_id=bundle.id, collection_id=bundle.collection_id, output=bundle.output
         )
+        # Captured before the new name overwrites it: a split transition has to
+        # reconstruct the name each part had last run, which is built from the
+        # output name that was in force then.
+        previous_output = state.output or bundle.output
         state.output = bundle.output
 
         if not documents:
@@ -466,6 +477,7 @@ class SyncService:
             plan = self._apply_document(
                 document,
                 state=state,
+                previous_output=previous_output,
                 previous_part_count=previous_part_count,
                 result=result,
                 dry_run=dry_run,
@@ -478,8 +490,16 @@ class SyncService:
         # happens, instead of on every run forever -- a warning that never stops
         # is one an operator learns to scroll past. Re-adoption still works if
         # the name comes back: the store is searched by name before creating.
+        #
+        # Skipped when nothing was written. An incomplete bundle renders from
+        # only the sources that survived, so it can render fewer parts than it
+        # really has -- retiring on that basis would record live documents as
+        # retired while leaving them untouched in Drive.
+        wrote_anything = not any(
+            p.action is SyncAction.SKIPPED_INCOMPLETE for p in result.documents
+        )
         current_names = {d.name for d in rendered}
-        for stale in sorted(set(state.document_ids) - current_names):
+        for stale in sorted(set(state.document_ids) - current_names) if wrote_anything else []:
             document_id = state.document_ids.pop(stale)
             state.composition_hashes.pop(stale, None)
             state.orphaned_documents[stale] = document_id
@@ -501,7 +521,7 @@ class SyncService:
         manifest.put_bundle(state)
 
     def _predecessor_name(
-        self, document: BundleDocument, state: BundleState, previous_part_count: int
+        self, document: BundleDocument, previous_output: str, previous_part_count: int
     ) -> str | None:
         """The name this part had under the previous split layout, if it differs.
 
@@ -517,7 +537,7 @@ class SyncService:
             return None  # a genuinely new part, nothing to inherit
 
         previous = document_name(
-            state.output,
+            previous_output,
             part=document.part,
             part_count=previous_part_count,
             suffix_format=self._settings.google_docs.part_suffix_format,
@@ -529,6 +549,7 @@ class SyncService:
         document: BundleDocument,
         *,
         state: BundleState,
+        previous_output: str,
         previous_part_count: int,
         result: BundleResult,
         dry_run: bool,
@@ -540,7 +561,9 @@ class SyncService:
 
         renamed_from: str | None = None
         if recorded_id is None:
-            renamed_from = self._predecessor_name(document, state, previous_part_count)
+            renamed_from = self._predecessor_name(
+                document, previous_output, previous_part_count
+            )
             if renamed_from is not None:
                 recorded_id = state.document_ids.get(renamed_from)
                 if recorded_id is not None:
@@ -650,7 +673,6 @@ class SyncService:
         plan.document_id = stored.id
         plan.web_view_link = stored.web_view_link
         state.document_ids[document.name] = stored.id
-        state.composition_hashes[document.name] = document.composition_hash
 
         if renamed_from is not None:
             # The file was renamed in place, so the old key no longer describes
@@ -658,19 +680,35 @@ class SyncService:
             state.document_ids.pop(renamed_from, None)
             state.composition_hashes.pop(renamed_from, None)
 
-        self._verify(stored.id, document, plan)
+        # The composition hash is recorded only once the write is known to have
+        # produced a real document. Recording it first and checking afterwards
+        # would leave an empty document remembered as synced, and every later
+        # run would compare equal and refuse to repair it.
+        if self._is_usable(stored.id, document, plan):
+            state.composition_hashes[document.name] = document.composition_hash
+        else:
+            plan.action = SyncAction.ERROR
+            state.composition_hashes.pop(document.name, None)
+
         return plan
 
-    def _verify(self, document_id: str, document: BundleDocument, plan: DocumentPlan) -> None:
-        """Read the written document back, when the store can do so.
+    def _is_usable(
+        self, document_id: str, document: BundleDocument, plan: DocumentPlan
+    ) -> bool:
+        """Whether the written document actually contains what was uploaded.
 
-        A Drive write that converts to an empty body reports success; without this
-        check the manifest would record a hash for a document that contains
-        nothing, and the next run would report NO_CHANGE forever.
+        A Drive write whose conversion produces an empty body still reports
+        success. Answering False here is what stops that document's composition
+        hash being recorded, so the next run sees a mismatch and rewrites it
+        instead of comparing equal forever.
+
+        A store that cannot read back, and a read that fails, both answer True:
+        neither is evidence the document is broken, and refusing to record a
+        hash on missing evidence would rewrite every document on every run.
         """
         inspect = getattr(self._store, "inspect", None)
         if inspect is None:
-            return
+            return True
         try:
             shape = inspect(document_id)
         except StoreError as exc:
@@ -678,13 +716,19 @@ class SyncService:
                 "google_doc_verify_failed",
                 extra={"document_id": document_id, "reason": str(exc)},
             )
-            return
+            return True
+
         if shape.is_empty:
-            plan.error = "document body is empty after conversion"
+            plan.error = (
+                "document body is empty after conversion; the hash was not "
+                "recorded so the next sync will rewrite it"
+            )
             log.error(
                 "google_doc_verify_empty",
                 extra={"document_id": document_id, "document_name": document.name},
             )
+            return False
+        return True
 
     # -- RSS fast path -----------------------------------------------------------
 

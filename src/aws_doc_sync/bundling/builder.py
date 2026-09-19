@@ -65,7 +65,7 @@ class BundleBuilder:
         read off the document, because a re-fetch that produced identical content
         must not change what this section renders.
         """
-        body = _demote_headings(_drop_leading_title(document.content, document.title))
+        body = _demote_headings(_drop_leading_title(document.content))
 
         parts = [
             f"## {document.title}",
@@ -164,6 +164,29 @@ class BundleBuilder:
         )
 
 
+#: Fixed part of the provenance header: title, metadata lines, the explanatory
+#: paragraph and the separators.
+HEADER_BASE_CHARS = 1_200
+
+#: Per-section cost of the "Contents:" list: an index, a dot, and a newline.
+CONTENTS_LINE_OVERHEAD = 6
+
+
+def header_allowance_for(sections: list[SourceSection]) -> int:
+    """Characters to reserve for the header when packing ``sections``.
+
+    The header lists every section it contains, so its size is a function of the
+    bundle, not a constant. A fixed reservation is wrong in the direction that
+    matters: a bundle with forty sources spends thousands of characters on the
+    Contents list alone and silently overshoots the target it was configured to
+    respect. Reserving for every section is deliberately conservative, since the
+    packing that would tell us how sections divide has not happened yet.
+    """
+    return HEADER_BASE_CHARS + sum(
+        len(section.title) + CONTENTS_LINE_OVERHEAD for section in sections
+    )
+
+
 def composition_hash(
     bundle: Bundle, sections: list[SourceSection], *, part: int, part_count: int
 ) -> str:
@@ -202,18 +225,22 @@ def _iso(value: datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _drop_leading_title(markdown: str, title: str) -> str:
-    """Remove the body's own H1 when it repeats the section heading.
+def _drop_leading_title(markdown: str) -> str:
+    """Remove the body's leading H1.
 
-    Keeping both would give the reader the same sentence twice and, in Google
-    Docs, two competing outline entries for one section.
+    A normalized AWS page opens with its own title as an H1, and the section
+    heading rendered just above already carries that title. Matching the two
+    texts before dropping one would fail whenever the registry overrides the
+    title -- the reader would then see the section twice, under two different
+    names. The position is the reliable signal, not the wording: a leading H1
+    in a single page is its title.
     """
     lines = markdown.split("\n")
     for index, line in enumerate(lines):
-        if not line.strip():
-            continue
         stripped = line.strip()
-        if stripped.startswith("# ") and stripped[2:].strip() == title.strip():
+        if not stripped:
+            continue
+        if stripped.startswith("# "):
             return "\n".join(lines[index + 1 :]).lstrip("\n")
         return markdown
     return markdown
