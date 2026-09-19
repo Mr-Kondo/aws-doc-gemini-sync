@@ -681,6 +681,14 @@ uv run pytest -m integration tests/integration/test_google_drive.py
 A scheduler should treat `1` as "look at this", not as "the run was a disaster":
 the sources that did sync are live and correct.
 
+## Privacy
+
+[PRIVACY.md](PRIVACY.md) describes what the tool accesses and where it stores
+things. It doubles as the privacy policy URL that Google's OAuth consent screen
+asks for. In short: everything runs and is stored on your own machine, and the
+only outbound destinations are AWS's public documentation site and Google's own
+APIs acting as you.
+
 ## License
 
 MIT
