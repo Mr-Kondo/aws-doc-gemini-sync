@@ -1,0 +1,160 @@
+# AWS documentation source registry.
+#
+# Three levels, deliberately:
+#
+#   Collection  -- what you select on the command line (--collection aws_ai_ml)
+#     Bundle    -- ONE Google Doc, one semantic topic  (--bundle sagemaker_training)
+#       Source  -- one AWS documentation page
+#
+# A bundle is not a folder. It is the unit a Gemini Notebook consumes as a single
+# knowledge source, so group pages the way a question would span them. Making one
+# Google Doc per AWS page would exhaust a notebook's source budget within a single
+# service.
+#
+# Every URL below was verified to return HTTP 200 at the time of writing. Do not
+# invent URLs: an unreachable source is reported as an error and, by default,
+# stops its whole bundle from being overwritten.
+#
+# Copy to config/sources.yaml and edit. config/sources.yaml is gitignored.
+
+collections:
+
+  # ------------------------------------------------------------------------------
+  aws_ai_ml:
+    description: SageMaker AI and Amazon Bedrock
+
+    bundles:
+
+      sagemaker_training:
+        output: AWS_SageMaker_Training
+        title: Amazon SageMaker AI - Training
+        description: >-
+          Training jobs, distributed training, hyperparameter tuning, and the
+          cost and capacity options that apply to SageMaker training workloads.
+        rss_feeds:
+          - https://docs.aws.amazon.com/sagemaker/latest/dg/amazon-sagemaker-release-notes.rss
+        sources:
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/how-it-works-training.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/train-model.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/distributed-training.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/automatic-model-tuning.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/model-managed-spot-training.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/train-warm-pools.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/train-heterogeneous-cluster.html
+
+      sagemaker_inference:
+        output: AWS_SageMaker_Inference
+        title: Amazon SageMaker AI - Inference
+        description: >-
+          Deployment and inference options: real-time, serverless, asynchronous,
+          batch transform, multi-model endpoints, and instance recommendation.
+        rss_feeds:
+          - https://docs.aws.amazon.com/sagemaker/latest/dg/amazon-sagemaker-release-notes.rss
+        sources:
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-model.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/batch-transform.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html
+          - url: https://docs.aws.amazon.com/sagemaker/latest/dg/inference-recommender.html
+
+      bedrock_core:
+        output: AWS_Bedrock_Core
+        title: Amazon Bedrock - Core
+        description: >-
+          Bedrock fundamentals: inference, knowledge bases, agents, guardrails,
+          prompt engineering, and the service's IAM model.
+        rss_feeds:
+          - https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-ug.rss
+        sources:
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started.html
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/inference.html
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-engineering-guidelines.html
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html
+          # This page has no .md rendition (the endpoint returns 404), so the
+          # fetcher chain falls through to the HTML backend. Kept deliberately:
+          # it exercises the fallback path in a normal run.
+          - url: https://docs.aws.amazon.com/bedrock/latest/userguide/api-setup.html
+
+  # ------------------------------------------------------------------------------
+  aws_security:
+    description: Identity and access management
+
+    bundles:
+
+      iam_core:
+        output: AWS_IAM_Core
+        title: AWS IAM - Core
+        description: >-
+          Identities, policies, policy evaluation logic, permissions boundaries,
+          temporary credentials, and security best practices.
+        # The IAM User Guide publishes no document-history RSS feed. That is not
+        # an error: without a feed this bundle is always checked by hash, which
+        # is the authoritative path anyway.
+        sources:
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_managed-vs-inline.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements.html
+          - url: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html
+
+  # ------------------------------------------------------------------------------
+  aws_platform:
+    description: Container registry and observability
+
+    bundles:
+
+      ecr_core:
+        output: AWS_ECR_Core
+        title: Amazon ECR - Core
+        description: >-
+          Private registries and repositories, image push, authentication,
+          lifecycle policies, image scanning, and the ECR IAM model.
+        rss_feeds:
+          - https://docs.aws.amazon.com/AmazonECR/latest/userguide/amazon-ecr-release-notes.rss
+        sources:
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/what-is-ecr.html
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/Repositories.html
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-create.html
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/images.html
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-push.html
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/registry_auth.html
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/LifecyclePolicies.html
+          - url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-scanning.html
+
+      cloudwatch_metrics:
+        output: AWS_CloudWatch_Metrics
+        title: Amazon CloudWatch - Metrics and Alarms
+        description: >-
+          CloudWatch concepts, metrics, custom metric publishing, and alarms.
+        rss_feeds:
+          - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/amazon-cloudwatch-document-history.rss
+        sources:
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_concepts.html
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/working_with_metrics.html
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html
+          # No .md rendition; retrieved through the HTML fallback.
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html
+
+      cloudwatch_logs:
+        output: AWS_CloudWatch_Logs
+        title: Amazon CloudWatch Logs
+        description: CloudWatch Logs concepts, setup, and log analysis.
+        # Kept separate from cloudwatch_metrics on purpose: the Logs guide is a
+        # different guide root, and the metrics feed cannot observe it. Mixing
+        # them would disqualify the whole bundle from the RSS fast path.
+        sources:
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_GettingStarted.html
+          - url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html

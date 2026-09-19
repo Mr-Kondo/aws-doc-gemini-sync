@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head><title>Example Page - Amazon Example</title></head>
+<body>
+  <div id="breadcrumbs" class="breadcrumb"><a href="/index.html">Documentation</a><a href="/example/index.html">Amazon Example</a></div>
+  <div id="page-toc-src"><a href="#first-section">First section</a></div>
+  <div id="main-content" class="awsui-util-container">
+    <div id="main-col-body">
+      <awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner>
+      <h1 class="topictitle" id="ExamplePage">Example Page</h1>
+      <div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header></div>
+      <noscript>Javascript is disabled or is unavailable in your browser.</noscript>
+
+      <p>Intro paragraph with <code>inline_code</code>, <b>bold</b>, and an
+         <a href="relative-page.html">internal link</a> plus an
+         <a href="other-page.md">markdown-suffixed link</a>.</p>
+
+      <div class="awsdocs-note">
+        <div class="awsdocs-note-title"><awsui-icon name="status-info"></awsui-icon><h6>Note</h6></div>
+        <div class="awsdocs-note-text"><p>Quotas apply per Region.</p></div>
+      </div>
+
+      <h2 id="first-section">First section</h2>
+      <ul>
+        <li>First bullet</li>
+        <li>Second bullet with <a href="https://example.com/x">absolute link</a>
+          <ul><li>Nested bullet</li></ul>
+        </li>
+      </ul>
+
+      <awsdocs-tabs>
+        <dl>
+          <dt>JSON</dt>
+          <dd>
+            <pre class="programlisting" data-example-id="abc123"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (json)--><code class="json "><code class="userinput"><span>{</span>
+  "Version": "2012-10-17",
+  "Statement": [
+    <span>{</span>
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "*"
+    <span>}</span>
+  ]
+<span>}</span></code></code></pre>
+          </dd>
+        </dl>
+      </awsdocs-tabs>
+
+      <h2 id="limits">Service quotas</h2>
+      <table>
+        <thead><tr><th>Resource</th><th>Default quota</th><th>Adjustable</th></tr></thead>
+        <tbody>
+          <tr><td>Endpoints per Region</td><td>100</td><td>Yes</td></tr>
+          <tr><td>Pipe | characters</td><td>10</td><td>No</td></tr>
+        </tbody>
+      </table>
+
+      <awsdocs-thumb-feedback></awsdocs-thumb-feedback>
+      <div class="awsdocs-copyright"><awsdocs-copyright></awsdocs-copyright></div>
+    </div>
+  </div>
+  <footer><p>Footer chrome that must not appear.</p></footer>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+   <channel>
+      <title>Amazon Example Release Notes</title>
+      <link>https://docs.aws.amazon.com/example/latest/dg/</link>
+      <description>A RSS feed containing the latest updates.</description>
+      <language>en-us</language>
+      <item>
+         <title>Updated guidance</title>
+         <link>https://docs.aws.amazon.com/example/latest/dg/doc-history.html</link>
+         <description>Example updated the &lt;a href="https://docs.aws.amazon.com/example/latest/dg/changed-page.html"&gt;changed page&lt;/a&gt;.</description>
+      </item>
+      <item>
+         <title>Unrelated guide update</title>
+         <link>https://docs.aws.amazon.com/example/latest/dg/doc-history.html</link>
+         <description>See &lt;a href="https://docs.aws.amazon.com/other/latest/dg/elsewhere.html"&gt;elsewhere&lt;/a&gt;.</description>
+      </item>
+   </channel>
+</rss>

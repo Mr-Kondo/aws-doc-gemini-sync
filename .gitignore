@@ -1,0 +1,56 @@
+# --- credentials: never commit ---
+# Pattern matching is a safety net, not the control. Keep credential files
+# OUTSIDE this directory (e.g. ~/.config/aws-doc-sync/); a file with a name
+# nobody anticipated -- "downloaded (1).json" -- cannot be caught by any rule
+# here. `aws-doc-sync validate-config` warns when it finds one inside the repo.
+.env
+.env.*
+!.env.example
+
+# Google OAuth client JSON, under any name it is likely to arrive with.
+credentials.json
+*credential*.json
+*credentials*.json
+client_secret*.json
+*client_secret*.json
+*client-secret*.json
+*.apps.googleusercontent.com.json
+
+# Cached OAuth tokens.
+token.json
+*token*.json
+
+# Service accounts and keys.
+service-account*.json
+service_account*.json
+*service-account*.json
+*.p12
+*.pem
+*.key
+
+# --- local sync state (manifest, caches, reports) ---
+.state/
+*.manifest.json
+
+# --- local operator config (may reference real folder ids) ---
+config/sources.yaml
+config/settings.yaml
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- os / editor ---
+.DS_Store
+.idea/
+.vscode/

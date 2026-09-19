@@ -1,0 +1,92 @@
+# Behaviour settings. Safe to commit and review -- nothing here is a credential.
+# Credentials and the destination Drive folder come from the environment (.env).
+#
+# Copy to config/settings.yaml and edit. config/settings.yaml is gitignored
+# because it can name local paths.
+
+http:
+  timeout_seconds: 30
+  connect_timeout_seconds: 10
+  # Retries apply to transport errors, 429, and 5xx only -- never to other 4xx.
+  max_retries: 4
+  backoff_base_seconds: 0.5
+  backoff_max_seconds: 30
+  # Politeness ceiling across all AWS requests in a run.
+  requests_per_second: 3.0
+  user_agent: "aws-doc-sync/0.1 (+https://docs.aws.amazon.com; documentation mirror)"
+  follow_redirects: true
+
+fetch:
+  # Acquisition priority. 'mcp' is skipped unless mcp.enabled is true.
+  strategy_order: [markdown, mcp, html]
+  # AWS serves an HTML 404 page for missing .md siblings, so the Content-Type
+  # check is what makes the markdown-first strategy safe.
+  require_markdown_content_type: true
+  # A .md response below this length is a table-of-contents stub; fall through.
+  min_markdown_chars: 200
+
+normalize:
+  strip_anchor_tags: true
+  max_consecutive_blank_lines: 1
+  # Rewrite relative .md links to absolute .html URLs, since the bundled document
+  # is read far away from docs.aws.amazon.com.
+  absolutize_links: true
+
+google_docs:
+  target_max_chars: 250000
+  hard_max_chars: 500000
+  # 'auto' probes Drive's importFormats and prefers text/markdown, which is what
+  # preserves headings, tables, and code blocks. Pin it only to debug.
+  import_mime_type: auto
+  part_suffix_format: "_{part:02d}"
+
+change_detection:
+  # RSS is an optimization; the content hash is always the source of truth.
+  use_rss: true
+  rss_lookback_days: 30
+  always_fetch_unknown: true
+  # Send If-None-Match / If-Modified-Since for sources whose ETag is known AND
+  # whose content is still in the cache below. A 304 then costs a request header
+  # and no body at all. Like RSS this is only an optimization: `scan` and
+  # `sync --full` never send validators, so a wrong ETag upstream cannot hide a
+  # change beyond the next full pass.
+  use_conditional_requests: true
+
+manifest:
+  # Local operator state. Never commit this file: two people syncing the same
+  # registry to different Drive folders must not share one manifest.
+  path: .state/manifest.json
+  backup: true
+
+  # Content-addressed store of normalized documents: <sha256>.md. This is what
+  # makes a 304 useful -- a bundle still needs the text of its unchanged sources
+  # in order to be re-rendered when one of its other sources moves. Entries are
+  # keyed by the hash of their own content, so they cannot go stale, and a miss
+  # simply falls back to a normal fetch. Defaults to a sibling of the manifest.
+  content_cache_enabled: true
+  # content_cache_path: .state/content-cache
+  prune_content_cache: true
+
+  # Concurrent runs are locked out for the whole load-modify-save cycle. Without
+  # it, two runs would both read the manifest and both write it, and the loser's
+  # document ids would vanish -- so the next run would create duplicates of every
+  # document it could no longer find.
+  lock_timeout_seconds: 30
+
+mcp:
+  # AWS Documentation MCP Server backend. Off by default so the pipeline runs on
+  # a machine with no MCP runtime. Requires: uv sync --extra mcp
+  enabled: false
+  command: uvx
+  args: ["awslabs.aws-documentation-mcp-server@latest"]
+  tool_name: read_documentation
+  startup_timeout_seconds: 60
+  request_timeout_seconds: 120
+  # The tool's own default is 5000 characters, which silently truncates most
+  # pages. This value is always sent explicitly, and pagination continues until
+  # the server reports that no content remains.
+  max_length: 100000
+
+logging:
+  level: INFO
+  format: json   # json | text
